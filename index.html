@@ -1,0 +1,1654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>OnlyOptionsTrades — Business Finance</title>
+
+<!-- PWA / installability -->
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#000000"/>
+<meta name="application-name" content="OOT Finance"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="OOT Finance"/>
+<link rel="apple-touch-icon" href="apple-touch-icon.png"/>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png"/>
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"/>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    /* OnlyOptionsTrades brand palette — black + electric blue */
+    --black:#000000;
+    --black-2:#0a0a0a;
+    --black-3:#141414;
+    --panel-bg:rgba(20,20,22,.85);
+    --panel-bg-2:rgba(28,28,32,.9);
+    --blue:#3aa9ff;            /* electric brand blue */
+    --blue-bright:#67c4ff;
+    --blue-deep:#1e7fd6;
+    --blue-glow:rgba(58,169,255,.4);
+
+    --bg:var(--black);
+    --panel:var(--panel-bg);
+    --panel-2:var(--panel-bg-2);
+    --line:rgba(255,255,255,.08);
+    --line-strong:rgba(58,169,255,.35);
+    --text:#ffffff;
+    --muted:#9ca3af;
+    --accent:#22c55e;     /* gain green for positive numbers */
+    --accent-2:var(--blue);
+    --danger:#ef4444;
+    --info:var(--blue);
+    --gold:var(--blue);   /* legacy alias to keep things consistent */
+    --gold-bright:var(--blue-bright);
+    --gold-deep:var(--blue-deep);
+    --shadow: 0 14px 40px rgba(0,0,0,.7);
+  }
+  *{box-sizing:border-box}
+  html,body{
+    margin:0;padding:0;color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:#000;
+    min-height:100vh;
+  }
+  /* Geometric polygon background overlay (matches OOT site) */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(900px 500px at 85% 10%, rgba(58,169,255,.08), transparent 60%),
+      radial-gradient(700px 400px at 10% 90%, rgba(58,169,255,.05), transparent 70%);
+  }
+  body::after{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.35;
+    background-image:
+      linear-gradient(135deg, rgba(255,255,255,.018) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.018) 50%, rgba(255,255,255,.018) 75%, transparent 75%, transparent),
+      linear-gradient(45deg, rgba(255,255,255,.012) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.012) 50%, rgba(255,255,255,.012) 75%, transparent 75%, transparent);
+    background-size: 90px 90px, 140px 140px;
+  }
+  a{color:var(--blue);text-decoration:none}
+  .app{display:grid;grid-template-columns:280px 1fr;min-height:100vh;position:relative;z-index:1;
+       padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+  /* Mobile layout: stack sidebar above main, scroll the whole page */
+  @media (max-width: 820px){
+    .app{grid-template-columns:1fr}
+    .sidebar{position:relative;height:auto;flex-direction:row;flex-wrap:wrap;gap:6px;padding:14px;
+             padding-top:calc(14px + env(safe-area-inset-top))}
+    .sidebar .brand{flex:1 1 100%;flex-direction:row;justify-content:flex-start;gap:12px;
+                    border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:8px;text-align:left}
+    .sidebar .brand .logo{width:54px;height:40px;margin-bottom:0}
+    .sidebar .brand .title{font-size:14px}
+    .sidebar .brand .sub{font-size:9px}
+    .sidebar .nav{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 100%}
+    .sidebar .nav button{width:auto;flex:0 0 auto;padding:8px 12px;font-size:13px}
+    .sidebar .footer-note{display:none}
+    .main{padding:16px;padding-bottom:calc(40px + env(safe-area-inset-bottom))}
+    h1{font-size:22px}
+    .stat .value{font-size:22px}
+    .pageHeader{flex-direction:column;align-items:flex-start}
+  }
+  /* Sidebar */
+  .sidebar{
+    background:linear-gradient(180deg, rgba(0,0,0,.95), rgba(10,10,12,.95));
+    backdrop-filter:blur(8px);
+    border-right:1px solid rgba(58,169,255,.2);
+    padding:20px 16px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:4px;
+    box-shadow: 1px 0 30px rgba(58,169,255,.06);
+  }
+  .brand{
+    display:flex;flex-direction:column;align-items:center;gap:6px;
+    padding:4px 6px 18px;border-bottom:1px solid var(--line);margin-bottom:14px;text-align:center;
+  }
+  .brand .logo{
+    width:160px;height:120px;display:flex;align-items:center;justify-content:center;
+    margin-bottom:4px;
+  }
+  .brand .logo svg{width:100%;height:100%;filter:drop-shadow(0 0 12px rgba(58,169,255,.6))}
+  .brand .logo img{
+    max-width:100%;max-height:100%;object-fit:contain;
+    filter:drop-shadow(0 0 14px rgba(58,169,255,.55));
+  }
+  .brand .title{
+    font-weight:900;line-height:1;letter-spacing:.05em;font-size:15px;color:#fff;
+    text-transform:uppercase;
+  }
+  .brand .title .blue{color:#fff;font-weight:900}
+  .brand .title .thin{font-weight:300;color:#fff}
+  .brand .sub{
+    font-size:9px;color:#fff;letter-spacing:.42em;text-transform:uppercase;
+    margin-top:4px;font-weight:400;opacity:.85
+  }
+  .nav button{
+    display:flex;gap:12px;align-items:center;width:100%;background:transparent;
+    color:#d6d6d6;border:1px solid transparent;padding:11px 14px;border-radius:10px;
+    cursor:pointer;text-align:left;font-size:14px;font-weight:500;transition:all .18s ease;
+  }
+  .nav button:hover{background:rgba(58,169,255,.08);color:#fff}
+  .nav button.active{
+    background:linear-gradient(90deg, rgba(58,169,255,.22), rgba(58,169,255,.05));
+    border-color:rgba(58,169,255,.4);color:#fff;
+    box-shadow: 0 0 18px rgba(58,169,255,.18), inset 0 0 0 1px rgba(255,255,255,.04);
+  }
+  .nav .icon{width:18px;text-align:center;color:var(--blue)}
+  .footer-note{margin-top:auto;font-size:11px;color:var(--muted);padding:14px 6px 4px;line-height:1.4;border-top:1px solid var(--line)}
+  /* Main */
+  .main{padding:24px 32px 60px;max-width:1500px;position:relative;z-index:1}
+  h1{margin:0 0 4px;font-size:26px;letter-spacing:.01em;color:#fff;font-weight:800}
+  h1 .blue{color:var(--blue)}
+  h2{margin:24px 0 10px;font-size:17px;color:#fff}
+  h3{margin:14px 0 10px;font-size:12px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.18em}
+  .pageHeader{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px;gap:14px;flex-wrap:wrap}
+  .sub{color:var(--muted);font-size:13px}
+  .grid{display:grid;gap:14px}
+  .grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .grid.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  @media (max-width:1100px){.grid.cols-4{grid-template-columns:repeat(2,1fr)}.grid.cols-3{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:680px){.grid.cols-4,.grid.cols-3,.grid.cols-2{grid-template-columns:1fr}}
+  .card{
+    background:linear-gradient(180deg, rgba(20,20,22,.85), rgba(10,10,12,.85));
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:14px;padding:18px;
+    box-shadow:var(--shadow);
+    backdrop-filter:blur(6px);
+  }
+  .card:hover{border-color:rgba(58,169,255,.18)}
+  .stat .label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.12em;font-weight:600}
+  .stat .value{font-size:26px;font-weight:800;margin-top:6px;color:#fff}
+  .stat .delta{font-size:12px;margin-top:6px}
+  .pos{color:var(--accent)}
+  .neg{color:var(--danger)}
+  .neutral{color:var(--muted)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .btn{
+    display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.04);
+    color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:999px;
+    padding:9px 16px;font-size:13px;cursor:pointer;font-weight:500;transition:all .15s ease;
+  }
+  .btn:hover{background:rgba(58,169,255,.12);border-color:rgba(58,169,255,.4)}
+  .btn.primary{
+    background:linear-gradient(135deg, #67c4ff 0%, #3aa9ff 50%, #1e7fd6 100%);
+    color:#fff;border-color:transparent;font-weight:600;
+    box-shadow: 0 4px 14px rgba(58,169,255,.35);
+  }
+  .btn.primary:hover{box-shadow: 0 6px 20px rgba(58,169,255,.55)}
+  .btn.danger{background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.4);color:#fca5a5}
+  .btn.gold{
+    background:linear-gradient(135deg, #67c4ff 0%, #3aa9ff 50%, #1e7fd6 100%);
+    color:#fff;border-color:transparent;font-weight:600;
+    box-shadow: 0 4px 14px rgba(58,169,255,.35);
+  }
+  .btn.ghost{background:transparent;border-color:rgba(255,255,255,.1)}
+  .input,.select,textarea{
+    background:rgba(0,0,0,.5);color:var(--text);
+    border:1px solid rgba(255,255,255,.1);border-radius:8px;
+    padding:9px 12px;font-size:13px;font-family:inherit;width:100%;
+  }
+  .input:focus,.select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(58,169,255,.15)}
+  label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:11px 10px;border-bottom:1px solid rgba(255,255,255,.06);vertical-align:middle}
+  th{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);font-weight:600}
+  tr:hover td{background:rgba(58,169,255,.04)}
+  .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--text);font-weight:500}
+  .pill.income{background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.35);color:#86efac}
+  .pill.expense{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35);color:#fca5a5}
+  .pill.bill{background:rgba(58,169,255,.12);border-color:rgba(58,169,255,.4);color:#a8d8ff}
+  .pill.payroll{background:rgba(168,85,247,.12);border-color:rgba(168,85,247,.35);color:#d8b4fe}
+  .small{font-size:12px;color:var(--muted)}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .hidden{display:none !important}
+  .empty{padding:32px;text-align:center;color:var(--muted);border:1px dashed rgba(255,255,255,.12);border-radius:12px}
+  .filebox{display:inline-flex;align-items:center;gap:8px;cursor:pointer;border:1px dashed rgba(58,169,255,.4);padding:10px 16px;border-radius:999px;background:rgba(58,169,255,.05);color:#fff;font-size:13px;transition:all .15s ease}
+  .filebox:hover{background:rgba(58,169,255,.12);border-color:var(--blue)}
+  .filebox input{display:none}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:30;backdrop-filter:blur(4px)}
+  .modal .box{background:linear-gradient(180deg, #0c0c0e, #050505);border:1px solid rgba(58,169,255,.25);border-radius:16px;padding:22px;width:min(640px,92vw);max-height:90vh;overflow:auto;box-shadow:0 25px 60px rgba(0,0,0,.7), 0 0 30px rgba(58,169,255,.1)}
+  .kbd{font-family:ui-monospace,Menlo,monospace;background:rgba(58,169,255,.12);border:1px solid rgba(58,169,255,.3);padding:1px 7px;border-radius:4px;font-size:12px;color:#a8d8ff}
+  details summary{cursor:pointer;color:var(--muted);font-size:13px;margin-bottom:8px}
+  .tagline{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+  progress{width:100%;height:8px;-webkit-appearance:none;appearance:none}
+  progress::-webkit-progress-bar{background:rgba(255,255,255,.05);border-radius:6px}
+  progress::-webkit-progress-value{background:linear-gradient(90deg,var(--blue-bright),var(--blue));border-radius:6px}
+  progress.over::-webkit-progress-value{background:linear-gradient(90deg,#ef4444,#f97316)}
+  .scroll-x{overflow-x:auto}
+  .stripe-warn{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.35);color:#fde68a;padding:11px 14px;border-radius:10px;font-size:12px;line-height:1.5}
+  /* Reminder banner (25th-2nd contractor + accountant) */
+  .reminder-banner{
+    background:linear-gradient(135deg, rgba(58,169,255,.18), rgba(30,127,214,.08));
+    border:1px solid rgba(58,169,255,.55);
+    border-radius:14px;padding:16px 18px;margin-bottom:16px;
+    box-shadow: 0 0 30px rgba(58,169,255,.2);
+    display:flex;align-items:flex-start;gap:14px;position:relative;
+    animation: pulseGlow 3s ease-in-out infinite;
+  }
+  @keyframes pulseGlow{
+    0%,100%{box-shadow:0 0 24px rgba(58,169,255,.18)}
+    50%{box-shadow:0 0 36px rgba(58,169,255,.35)}
+  }
+  .reminder-banner .bell{
+    font-size:24px;line-height:1;flex-shrink:0;
+    width:42px;height:42px;border-radius:50%;
+    background:linear-gradient(135deg,#67c4ff,#1e7fd6);
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;box-shadow: 0 4px 14px rgba(58,169,255,.45);
+  }
+  .reminder-banner h4{margin:0 0 4px;color:#fff;font-size:15px;letter-spacing:.02em}
+  .reminder-banner ul{margin:6px 0 0 18px;padding:0;color:#d4e9ff;font-size:13px;line-height:1.7}
+  .reminder-banner .close{position:absolute;top:10px;right:12px;background:transparent;border:0;color:rgba(255,255,255,.5);cursor:pointer;font-size:18px}
+  .reminder-banner .close:hover{color:#fff}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo" id="brandLogo">
+        <img src="logo-square.png" alt="OnlyOptionsTrades" />
+      </div>
+      <div class="title"><span class="blue">ONLY</span><span class="thin">OPTIONS</span></div>
+      <div class="sub">T R A D E S</div>
+      <div class="sub" style="letter-spacing:.18em;color:var(--blue);margin-top:8px;font-size:9px">BUSINESS FINANCE</div>
+    </div>
+    <div class="nav" id="nav">
+      <button data-view="dashboard" class="active"><span class="icon">▣</span> Dashboard</button>
+      <button data-view="revenue"><span class="icon">↑</span> Revenue & Stripe</button>
+      <button data-view="expenses"><span class="icon">↓</span> Expenses</button>
+      <button data-view="bills"><span class="icon">⏱</span> Bills & Recurring</button>
+      <button data-view="payroll"><span class="icon">$</span> Payroll & 1099s</button>
+      <button data-view="budget"><span class="icon">◎</span> Budgets</button>
+      <button data-view="insights"><span class="icon">📈</span> Insights</button>
+      <button data-view="settings"><span class="icon">⚙</span> Settings</button>
+    </div>
+    <div class="footer-note">
+      All data stays in your browser (localStorage). Export regularly to back up.
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- DASHBOARD -->
+    <section data-page="dashboard">
+      <div class="pageHeader">
+        <div>
+          <h1>Dashboard</h1>
+          <div class="sub">Snapshot of OnlyOptionsTrades for <span id="dashMonthLabel"></span></div>
+        </div>
+        <div class="row">
+          <label style="margin:0">Month</label>
+          <input type="month" id="dashMonth" class="input" style="width:auto"/>
+          <button class="btn ghost" id="dashThisMonth">This month</button>
+        </div>
+      </div>
+
+      <!-- End-of-month reminder banner (shows 25th–2nd) -->
+      <div id="reminderBanner" class="reminder-banner hidden">
+        <div class="bell">🔔</div>
+        <div style="flex:1">
+          <h4 id="reminderTitle">End-of-Month Reminders</h4>
+          <ul>
+            <li><strong>Send contractor payments</strong> — review 1099 entries and process by month-end.</li>
+            <li><strong>Send bank &amp; credit card statements to your accountant</strong> — export the latest CSVs and forward.</li>
+          </ul>
+        </div>
+        <button class="close" id="reminderClose" title="Dismiss for this cycle">✕</button>
+      </div>
+
+      <div class="grid cols-4">
+        <div class="card stat"><div class="label">Revenue (MTD)</div><div class="value pos" id="kpiRevenue">$0</div><div class="delta" id="kpiRevenueDelta"></div></div>
+        <div class="card stat"><div class="label">Expenses (MTD)</div><div class="value neg" id="kpiExpenses">$0</div><div class="delta" id="kpiExpensesDelta"></div></div>
+        <div class="card stat"><div class="label">Net Profit</div><div class="value" id="kpiNet">$0</div><div class="delta" id="kpiNetDelta"></div></div>
+        <div class="card stat"><div class="label">Cash on Hand</div><div class="value" id="kpiCash">$0</div><div class="delta neutral" id="kpiRunway"></div></div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:14px">
+        <div class="card">
+          <h3>12-Month Cash Flow</h3>
+          <canvas id="chartCashFlow" height="180"></canvas>
+        </div>
+        <div class="card">
+          <h3>This Month — Spending by Category</h3>
+          <canvas id="chartCategoryMonth" height="180"></canvas>
+        </div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:14px">
+        <div class="card">
+          <h3>Top Expenses This Month</h3>
+          <table id="tblTopExpenses"><thead><tr><th>Date</th><th>Description</th><th>Category</th><th style="text-align:right">Amount</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div class="card">
+          <h3>Recurring Bills Due</h3>
+          <table id="tblBillsDue"><thead><tr><th>Bill</th><th>Category</th><th>Cadence</th><th style="text-align:right">Avg/mo</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3>Monthly Insight</h3>
+        <div id="monthlyInsight" class="sub" style="line-height:1.6;color:var(--text)"></div>
+      </div>
+    </section>
+
+    <!-- REVENUE -->
+    <section data-page="revenue" class="hidden">
+      <div class="pageHeader">
+        <div><h1>Revenue & Stripe</h1><div class="sub">Track Stripe payouts and other revenue. Connect API or import CSV.</div></div>
+      </div>
+
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Stripe — Live API Connection</h3>
+          <div class="stripe-warn">⚠ Your Stripe Secret Key is stored only in your browser (localStorage) on this device. Anyone with access to this browser can read it. Use a <strong>restricted key</strong> with read-only permissions on Charges &amp; Balance Transactions.</div>
+          <div style="margin-top:10px">
+            <label>Stripe Secret Key (rk_live_… or rk_test_…)</label>
+            <input id="stripeKey" class="input" type="password" placeholder="rk_live_..."/>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <button class="btn primary" id="btnStripeSave">Save Key</button>
+            <button class="btn" id="btnStripeFetch">Fetch Last 90 Days</button>
+            <button class="btn danger" id="btnStripeClear">Forget Key</button>
+          </div>
+          <div id="stripeStatus" class="small" style="margin-top:8px"></div>
+        </div>
+
+        <div class="card">
+          <h3>Stripe — Manual CSV Import</h3>
+          <div class="sub">Export from Stripe Dashboard → Payments / Payouts. We'll auto-detect amount &amp; date columns.</div>
+          <label class="filebox" style="margin-top:10px">
+            <span>📄 Choose Stripe CSV</span>
+            <input type="file" accept=".csv" id="stripeCsv"/>
+          </label>
+          <div id="stripeCsvStatus" class="small" style="margin-top:8px"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="toolbar">
+          <h3 style="margin:0">Add Manual Revenue</h3>
+          <span class="sub">For non-Stripe income (wires, ACH, affiliate payouts, etc.)</span>
+        </div>
+        <div class="grid cols-4">
+          <div><label>Date</label><input id="revDate" type="date" class="input"/></div>
+          <div><label>Source</label><input id="revSource" class="input" placeholder="e.g. Wire from XYZ"/></div>
+          <div><label>Amount ($)</label><input id="revAmount" class="input" type="number" step="0.01" placeholder="0.00"/></div>
+          <div><label>Notes</label><input id="revNotes" class="input" placeholder="optional"/></div>
+        </div>
+        <div class="row" style="margin-top:10px"><button class="btn primary" id="btnAddRevenue">Add Revenue</button></div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="toolbar"><h3 style="margin:0">Revenue Transactions</h3><span class="small" id="revCount"></span><div style="flex:1"></div><button class="btn ghost" id="btnExportRev">Export CSV</button></div>
+        <div class="scroll-x"><table id="tblRevenue"><thead><tr><th>Date</th><th>Source</th><th>Notes</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- EXPENSES -->
+    <section data-page="expenses" class="hidden">
+      <div class="pageHeader">
+        <div><h1>Expenses</h1><div class="sub">Import bank or credit card statements. Categorize, mark as bill, edit.</div></div>
+        <div class="row">
+          <label class="filebox"><span>📄 Import CSV</span><input type="file" accept=".csv" id="expenseCsv"/></label>
+          <button class="btn" id="btnAddExpenseManual">+ Add Manually</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar">
+          <input class="input" id="expSearch" placeholder="Search description…" style="max-width:260px"/>
+          <select class="select" id="expCatFilter" style="max-width:200px"><option value="">All categories</option></select>
+          <select class="select" id="expMonthFilter" style="max-width:160px"><option value="">All months</option></select>
+          <select class="select" id="expFlagFilter" style="max-width:160px">
+            <option value="">All transactions</option>
+            <option value="bill">Bills only</option>
+            <option value="uncategorized">Uncategorized</option>
+          </select>
+          <div style="flex:1"></div>
+          <span class="small" id="expCount"></span>
+          <button class="btn ghost" id="btnExportExp">Export CSV</button>
+        </div>
+        <div class="scroll-x">
+          <table id="tblExpenses"><thead><tr>
+            <th>Date</th><th>Description</th><th>Account</th><th>Category</th><th style="text-align:center">Bill</th><th style="text-align:right">Amount</th><th></th>
+          </tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <details>
+          <summary><strong>CSV Import Help</strong> — supported columns &amp; tips</summary>
+          <p class="sub" style="line-height:1.6">We auto-detect common column names. Most banks &amp; cards work. Required: a date column and an amount column. Optional: description/memo, debit/credit columns.</p>
+          <p class="sub">Recognized headers: <span class="kbd">Date</span> <span class="kbd">Posted Date</span> <span class="kbd">Transaction Date</span> · <span class="kbd">Amount</span> <span class="kbd">Debit</span> <span class="kbd">Credit</span> · <span class="kbd">Description</span> <span class="kbd">Memo</span> <span class="kbd">Payee</span></p>
+          <p class="sub">Negative amounts are treated as expenses, positive as deposits. Some banks invert this — you can fix it during import.</p>
+        </details>
+      </div>
+    </section>
+
+    <!-- BILLS & RECURRING -->
+    <section data-page="bills" class="hidden">
+      <div class="pageHeader">
+        <div><h1>Bills & Recurring</h1><div class="sub">Items you've flagged as bills. Auto-detected recurring charges appear below.</div></div>
+      </div>
+
+      <div class="card">
+        <h3>Flagged Bills</h3>
+        <div class="scroll-x"><table id="tblBills"><thead><tr><th>Description</th><th>Category</th><th>Last Charge</th><th>Avg Amount</th><th>Charges</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3>Possible Recurring Charges (auto-detected)</h3>
+        <div class="sub" style="margin-bottom:8px">Charges that look similar across months. Click "Mark as Bill" to track.</div>
+        <div class="scroll-x"><table id="tblRecurring"><thead><tr><th>Description</th><th>Avg Amount</th><th>Months Seen</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- PAYROLL -->
+    <section data-page="payroll" class="hidden">
+      <div class="pageHeader">
+        <div><h1>Payroll & 1099s</h1><div class="sub">Track W-2 employee compensation and 1099 contractor payments.</div></div>
+      </div>
+
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Add Contractor (1099) Payment</h3>
+          <div class="grid cols-2">
+            <div><label>Date</label><input id="conDate" type="date" class="input"/></div>
+            <div><label>Contractor Name</label><input id="conName" class="input" placeholder="e.g. Jane Doe"/></div>
+            <div><label>Role / Service</label><input id="conRole" class="input" placeholder="e.g. Video editing"/></div>
+            <div><label>Amount ($)</label><input id="conAmount" class="input" type="number" step="0.01"/></div>
+          </div>
+          <div class="row" style="margin-top:10px"><button class="btn primary" id="btnAddCon">Add 1099 Payment</button></div>
+        </div>
+        <div class="card">
+          <h3>Add W-2 Payroll Run</h3>
+          <div class="grid cols-2">
+            <div><label>Pay Date</label><input id="w2Date" type="date" class="input"/></div>
+            <div><label>Employee</label><input id="w2Name" class="input" placeholder="e.g. John Smith"/></div>
+            <div><label>Gross Pay ($)</label><input id="w2Gross" class="input" type="number" step="0.01"/></div>
+            <div><label>Employer Taxes ($)</label><input id="w2Tax" class="input" type="number" step="0.01" placeholder="optional"/></div>
+            <div><label>Benefits ($)</label><input id="w2Ben" class="input" type="number" step="0.01" placeholder="optional"/></div>
+            <div><label>Notes</label><input id="w2Notes" class="input" placeholder="optional"/></div>
+          </div>
+          <div class="row" style="margin-top:10px"><button class="btn primary" id="btnAddW2">Add W-2 Run</button></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3>Contractor (1099) Payments — YTD by Person</h3>
+        <div class="scroll-x"><table id="tblConYtd"><thead><tr><th>Contractor</th><th>YTD Total</th><th>Payments</th><th>1099 Required?</th></tr></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:14px">
+        <div class="card">
+          <h3>1099 Payment History</h3>
+          <div class="scroll-x"><table id="tblCon"><thead><tr><th>Date</th><th>Contractor</th><th>Role</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div class="card">
+          <h3>W-2 Payroll History</h3>
+          <div class="scroll-x"><table id="tblW2"><thead><tr><th>Date</th><th>Employee</th><th>Gross</th><th>Taxes</th><th>Benefits</th><th style="text-align:right">Total Cost</th><th></th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BUDGETS -->
+    <section data-page="budget" class="hidden">
+      <div class="pageHeader">
+        <div><h1>Budgets</h1><div class="sub">Set monthly spending targets per category. See actual vs budget below.</div></div>
+      </div>
+
+      <div class="card">
+        <h3>Monthly Budget Targets</h3>
+        <div class="scroll-x"><table id="tblBudget"><thead><tr><th>Category</th><th>Monthly Budget</th><th>Actual (this month)</th><th style="min-width:200px">Used</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="row" style="margin-top:12px">
+          <input id="newBudgetCat" class="input" placeholder="Category name" style="max-width:200px"/>
+          <input id="newBudgetAmt" class="input" type="number" step="0.01" placeholder="Monthly $" style="max-width:140px"/>
+          <button class="btn primary" id="btnAddBudget">+ Add Budget</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- INSIGHTS -->
+    <section data-page="insights" class="hidden">
+      <div class="pageHeader">
+        <div><h1>Insights</h1><div class="sub">Trends, category breakdowns, runway, and feedback.</div></div>
+      </div>
+
+      <div class="grid cols-2">
+        <div class="card"><h3>Revenue vs Expenses (12 mo)</h3><canvas id="insChart1" height="200"></canvas></div>
+        <div class="card"><h3>Category Spending (12 mo)</h3><canvas id="insChart2" height="200"></canvas></div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3>Month-over-Month Movement</h3>
+        <div class="scroll-x"><table id="tblMoM"><thead><tr><th>Category</th><th>Last Month</th><th>This Month</th><th>Change</th><th>%</th></tr></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3>Cash Flow & Runway Detail</h3>
+        <div id="runwayDetail" class="sub" style="line-height:1.7;color:var(--text)"></div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3>Feedback & Recommendations</h3>
+        <div id="feedback" style="line-height:1.7"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section data-page="settings" class="hidden">
+      <div class="pageHeader">
+        <div><h1>Settings</h1><div class="sub">Categorization rules, cash on hand, backup &amp; restore.</div></div>
+      </div>
+
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Cash on Hand</h3>
+          <div class="sub">Used to compute runway. Update whenever you reconcile your accounts.</div>
+          <div class="row" style="margin-top:10px">
+            <input id="cashOnHand" class="input" type="number" step="0.01" placeholder="0.00" style="max-width:200px"/>
+            <button class="btn primary" id="btnSaveCash">Save</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Backup & Restore</h3>
+          <div class="row">
+            <button class="btn gold" id="btnExportAll">⤓ Export Everything (JSON)</button>
+            <label class="filebox"><span>⤒ Import JSON</span><input type="file" accept=".json" id="importJson"/></label>
+            <button class="btn danger" id="btnWipe">Wipe All Data</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3>OOT Logo</h3>
+        <div class="sub">Upload your real OOT bull logo to replace the placeholder in the sidebar. Stored locally in this browser.</div>
+        <div class="row" style="margin-top:12px;align-items:center">
+          <div id="logoPreview" style="width:120px;height:80px;background:#000;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden"></div>
+          <label class="filebox"><span>📤 Upload Logo (PNG/JPG/SVG)</span><input type="file" accept="image/*" id="logoUpload"/></label>
+          <button class="btn danger" id="btnLogoClear">Reset to Default</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3>Auto-Categorization Rules</h3>
+        <div class="sub" style="margin-bottom:10px">When a transaction description contains a keyword, auto-set its category. Rules apply on import and when re-running below.</div>
+        <div class="scroll-x"><table id="tblRules"><thead><tr><th>If description contains</th><th>Set category to</th><th>Mark as bill?</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="row" style="margin-top:10px">
+          <input id="ruleKey" class="input" placeholder="keyword (e.g. Adobe)" style="max-width:220px"/>
+          <input id="ruleCat" class="input" placeholder="category (e.g. Software)" style="max-width:200px"/>
+          <label class="row" style="margin:0;color:var(--muted);font-size:13px"><input type="checkbox" id="ruleBill"/> Mark as bill</label>
+          <button class="btn primary" id="btnAddRule">+ Add Rule</button>
+          <button class="btn" id="btnRunRules">Re-run rules on all expenses</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3>Default Categories</h3>
+        <div class="sub">Add or remove categories used in dropdowns.</div>
+        <div id="catChips" style="margin:10px 0"></div>
+        <div class="row">
+          <input id="newCat" class="input" placeholder="New category" style="max-width:240px"/>
+          <button class="btn primary" id="btnAddCat">+ Add</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- CSV mapping modal -->
+<div class="modal hidden" id="csvModal">
+  <div class="box">
+    <h2 style="margin-top:0">Map CSV Columns</h2>
+    <div class="sub" id="csvModalSub"></div>
+    <div class="grid cols-2" style="margin-top:10px">
+      <div><label>Date column</label><select id="mapDate" class="select"></select></div>
+      <div><label>Description column</label><select id="mapDesc" class="select"></select></div>
+      <div><label>Amount column (or leave blank)</label><select id="mapAmt" class="select"></select></div>
+      <div><label>Debit column (optional)</label><select id="mapDebit" class="select"></select></div>
+      <div><label>Credit column (optional)</label><select id="mapCredit" class="select"></select></div>
+      <div><label>Account label</label><input id="mapAccount" class="input" placeholder="e.g. Chase Visa"/></div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <label class="row" style="margin:0;color:var(--muted);font-size:13px"><input type="checkbox" id="mapInvert"/> This bank uses POSITIVE numbers for expenses (invert signs)</label>
+    </div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button class="btn ghost" id="csvCancel">Cancel</button>
+      <button class="btn primary" id="csvImport">Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit transaction modal -->
+<div class="modal hidden" id="editModal">
+  <div class="box">
+    <h2 style="margin-top:0">Edit Transaction</h2>
+    <div class="grid cols-2">
+      <div><label>Date</label><input id="editDate" type="date" class="input"/></div>
+      <div><label>Amount ($) (negative = expense)</label><input id="editAmt" class="input" type="number" step="0.01"/></div>
+      <div style="grid-column:1/-1"><label>Description</label><input id="editDesc" class="input"/></div>
+      <div><label>Category</label><select id="editCat" class="select"></select></div>
+      <div><label>Account</label><input id="editAcct" class="input"/></div>
+      <div><label class="row" style="margin:0"><input type="checkbox" id="editBill"/> Mark as recurring bill</label></div>
+      <div style="grid-column:1/-1"><label>Notes</label><input id="editNotes" class="input"/></div>
+    </div>
+    <div class="row" style="margin-top:14px;justify-content:space-between">
+      <button class="btn danger" id="editDelete">Delete</button>
+      <div class="row">
+        <button class="btn ghost" id="editCancel">Cancel</button>
+        <button class="btn primary" id="editSave">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   OnlyOptionsTrades — Business Finance App
+   Single-file vanilla JS app with localStorage persistence
+   ============================================================ */
+
+const LS_KEY = 'oot_finance_v1';
+const fmt$ = n => (n<0?'-':'') + '$' + Math.abs(Number(n||0)).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const todayISO = () => new Date().toISOString().slice(0,10);
+const monthKey = d => (d||'').slice(0,7); // YYYY-MM
+const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+
+const DEFAULT_CATEGORIES = [
+  'Software & Subscriptions','Marketing & Ads','Payment Processing','Banking & Fees',
+  'Office & Supplies','Travel','Meals & Entertainment','Professional Services',
+  'Education & Research','Hosting & Infrastructure','Contractors (1099)','Payroll (W-2)',
+  'Taxes','Insurance','Rent & Utilities','Equipment','Refunds','Owner Draw','Other'
+];
+
+const DEFAULT_RULES = [
+  {key:'stripe',cat:'Payment Processing',bill:false},
+  {key:'adobe',cat:'Software & Subscriptions',bill:true},
+  {key:'google ads',cat:'Marketing & Ads',bill:true},
+  {key:'meta',cat:'Marketing & Ads',bill:true},
+  {key:'facebook',cat:'Marketing & Ads',bill:true},
+  {key:'aws',cat:'Hosting & Infrastructure',bill:true},
+  {key:'godaddy',cat:'Hosting & Infrastructure',bill:true},
+  {key:'zoom',cat:'Software & Subscriptions',bill:true},
+  {key:'slack',cat:'Software & Subscriptions',bill:true},
+  {key:'notion',cat:'Software & Subscriptions',bill:true},
+  {key:'github',cat:'Software & Subscriptions',bill:true},
+  {key:'openai',cat:'Software & Subscriptions',bill:true},
+  {key:'tradingview',cat:'Software & Subscriptions',bill:true},
+  {key:'thinkorswim',cat:'Software & Subscriptions',bill:false},
+  {key:'discord',cat:'Software & Subscriptions',bill:true},
+  {key:'wire fee',cat:'Banking & Fees',bill:false},
+  {key:'venmo',cat:'Other',bill:false},
+  {key:'paypal',cat:'Payment Processing',bill:false}
+];
+
+const blank = () => ({
+  expenses:[], revenue:[], stripeImports:[], contractors:[], w2:[],
+  rules:[...DEFAULT_RULES], categories:[...DEFAULT_CATEGORIES],
+  budgets:{}, cashOnHand:0, stripeKey:'', stripeFetchedAt:null,
+  bills:[], // ids of expense rows flagged as recurring bills
+  logoDataUrl:'',           // user-uploaded logo (base64)
+  reminderDismissedCycle:'' // YYYY-MM of cycle the user dismissed (so it returns next cycle)
+});
+
+let state = load();
+
+function load(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return blank();
+    const p = JSON.parse(raw);
+    return Object.assign(blank(), p);
+  }catch(e){ console.warn(e); return blank(); }
+}
+function save(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+
+/* ---------- Navigation ---------- */
+document.querySelectorAll('#nav button').forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll('#nav button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    const v = b.dataset.view;
+    document.querySelectorAll('section[data-page]').forEach(s=>{
+      s.classList.toggle('hidden', s.dataset.page!==v);
+    });
+    if(v==='dashboard') renderDashboard();
+    if(v==='revenue') renderRevenue();
+    if(v==='expenses') renderExpenses();
+    if(v==='bills') renderBills();
+    if(v==='payroll') renderPayroll();
+    if(v==='budget') renderBudgets();
+    if(v==='insights') renderInsights();
+    if(v==='settings') renderSettings();
+  };
+});
+
+/* ============================================================
+   CATEGORIZATION + RULES
+   ============================================================ */
+function applyRulesTo(tx){
+  if(tx.amount > 0) return tx; // skip income
+  const desc = (tx.description||'').toLowerCase();
+  for(const r of state.rules){
+    if(desc.includes((r.key||'').toLowerCase()) && r.key){
+      if(!tx.category || tx.category==='Uncategorized') tx.category = r.cat;
+      if(r.bill) tx.isBill = true;
+      break;
+    }
+  }
+  return tx;
+}
+function reapplyRulesAll(){ state.expenses.forEach(applyRulesTo); save(); }
+
+/* ============================================================
+   CSV PARSING / IMPORT
+   ============================================================ */
+let csvPending = null;
+function openCsvModal(rows, headers, title){
+  csvPending = {rows, headers};
+  document.getElementById('csvModalSub').textContent = title + ` — ${rows.length} rows detected.`;
+  ['mapDate','mapDesc','mapAmt','mapDebit','mapCredit'].forEach(id=>{
+    const sel = document.getElementById(id);
+    sel.innerHTML = '<option value="">— none —</option>' + headers.map(h=>`<option value="${h}">${h}</option>`).join('');
+  });
+  // Auto-detect
+  const guess = (...names) => headers.find(h => names.some(n => h.toLowerCase().replace(/[^a-z]/g,'').includes(n)));
+  document.getElementById('mapDate').value = guess('date','posteddate','transactiondate') || '';
+  document.getElementById('mapDesc').value = guess('description','memo','payee','name','details','merchant') || '';
+  document.getElementById('mapAmt').value = guess('amount','amt','transactionamount') || '';
+  document.getElementById('mapDebit').value = guess('debit','withdrawal','outflow') || '';
+  document.getElementById('mapCredit').value = guess('credit','deposit','inflow') || '';
+  document.getElementById('mapInvert').checked = false;
+  document.getElementById('mapAccount').value = '';
+  document.getElementById('csvModal').classList.remove('hidden');
+}
+document.getElementById('csvCancel').onclick = ()=> document.getElementById('csvModal').classList.add('hidden');
+
+function parseDateAny(s){
+  if(!s) return '';
+  s = String(s).trim();
+  // ISO already
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  // MM/DD/YYYY or M/D/YY
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if(m){
+    let [_,mo,d,y] = m;
+    if(y.length===2) y = (parseInt(y)>50?'19':'20')+y;
+    return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
+  }
+  const dt = new Date(s);
+  if(!isNaN(dt)) return dt.toISOString().slice(0,10);
+  return '';
+}
+function num(s){
+  if(s==null||s==='') return 0;
+  return Number(String(s).replace(/[^0-9\.\-]/g,'')) || 0;
+}
+
+document.getElementById('csvImport').onclick = ()=>{
+  const {rows} = csvPending;
+  const dCol = document.getElementById('mapDate').value;
+  const descCol = document.getElementById('mapDesc').value;
+  const aCol = document.getElementById('mapAmt').value;
+  const debitCol = document.getElementById('mapDebit').value;
+  const creditCol = document.getElementById('mapCredit').value;
+  const invert = document.getElementById('mapInvert').checked;
+  const account = document.getElementById('mapAccount').value || 'Imported';
+  if(!dCol){ alert('Pick a date column.'); return; }
+  let added = 0;
+  rows.forEach(r=>{
+    const date = parseDateAny(r[dCol]);
+    if(!date) return;
+    let amount = 0;
+    if(aCol) amount = num(r[aCol]);
+    else {
+      const dv = num(r[debitCol]);
+      const cv = num(r[creditCol]);
+      // typical bank: debit=expense (positive), credit=income (positive)
+      amount = cv - dv;
+    }
+    if(invert) amount = -amount;
+    if(!amount) return;
+    const tx = {
+      id: uid(),
+      date,
+      description: (r[descCol]||'').toString().trim() || '(no description)',
+      amount: amount,
+      category: amount>0 ? 'Revenue' : 'Uncategorized',
+      account,
+      isBill: false,
+      notes: ''
+    };
+    applyRulesTo(tx);
+    state.expenses.push(tx);
+    added++;
+  });
+  save();
+  document.getElementById('csvModal').classList.add('hidden');
+  alert(`Imported ${added} transactions to ${account}.`);
+  renderExpenses();
+  renderDashboard();
+};
+
+document.getElementById('expenseCsv').onchange = (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  Papa.parse(f, {header:true, skipEmptyLines:true, complete:(res)=>{
+    if(!res.data.length){ alert('CSV is empty.'); return; }
+    openCsvModal(res.data, res.meta.fields, 'Bank/Card statement: ' + f.name);
+    e.target.value = '';
+  }});
+};
+
+document.getElementById('stripeCsv').onchange = (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  Papa.parse(f, {header:true, skipEmptyLines:true, complete:(res)=>{
+    const headers = res.meta.fields;
+    const dateH = headers.find(h=>/^(created|created \(utc\)|date)/i.test(h)) || headers.find(h=>/date/i.test(h));
+    const amtH = headers.find(h=>/^(amount|gross|net)/i.test(h));
+    const descH = headers.find(h=>/(description|customer email|customer|statement descriptor)/i.test(h));
+    let added = 0;
+    res.data.forEach(r=>{
+      const date = parseDateAny(r[dateH]);
+      const amt = num(r[amtH]);
+      if(!date||!amt) return;
+      state.revenue.push({
+        id:uid(), date, source:'Stripe', amount:amt,
+        notes:(r[descH]||'').toString().trim()
+      });
+      added++;
+    });
+    state.stripeImports.push({date:todayISO(), file:f.name, count:added});
+    save();
+    document.getElementById('stripeCsvStatus').textContent = `Imported ${added} Stripe rows from ${f.name}.`;
+    e.target.value = '';
+    renderRevenue(); renderDashboard();
+  }});
+};
+
+/* ============================================================
+   STRIPE LIVE API
+   ============================================================ */
+document.getElementById('btnStripeSave').onclick = ()=>{
+  const k = document.getElementById('stripeKey').value.trim();
+  if(!k.startsWith('rk_') && !k.startsWith('sk_')){
+    if(!confirm('That doesn\'t look like a Stripe key. Save anyway?')) return;
+  }
+  state.stripeKey = k;
+  save();
+  document.getElementById('stripeStatus').textContent = 'Key saved locally.';
+};
+document.getElementById('btnStripeClear').onclick = ()=>{
+  state.stripeKey = '';
+  document.getElementById('stripeKey').value='';
+  save();
+  document.getElementById('stripeStatus').textContent = 'Key removed.';
+};
+document.getElementById('btnStripeFetch').onclick = async ()=>{
+  const k = state.stripeKey || document.getElementById('stripeKey').value.trim();
+  if(!k){ alert('Save a Stripe key first.'); return; }
+  const status = document.getElementById('stripeStatus');
+  status.textContent = 'Fetching balance transactions…';
+  try{
+    const since = Math.floor((Date.now() - 90*24*3600*1000)/1000);
+    let url = `https://api.stripe.com/v1/balance_transactions?limit=100&created[gte]=${since}`;
+    let added = 0, hasMore=true, lastId=null;
+    while(hasMore){
+      let u = url + (lastId?`&starting_after=${lastId}`:'');
+      const res = await fetch(u, {headers:{Authorization:'Bearer '+k}});
+      if(!res.ok){ const t = await res.text(); throw new Error(res.status+': '+t.slice(0,200)); }
+      const j = await res.json();
+      j.data.forEach(t=>{
+        // only count successful charges, not fees/transfers separately
+        if(t.type !== 'charge') return;
+        const date = new Date(t.created*1000).toISOString().slice(0,10);
+        const amt = (t.amount||0)/100;
+        // dedupe by stripe id
+        if(state.revenue.find(r=>r.stripeId===t.id)) return;
+        state.revenue.push({id:uid(), stripeId:t.id, date, source:'Stripe', amount:amt, notes:t.description||''});
+        added++;
+      });
+      hasMore = j.has_more;
+      if(j.data.length) lastId = j.data[j.data.length-1].id;
+      else hasMore=false;
+    }
+    state.stripeFetchedAt = new Date().toISOString();
+    save();
+    status.textContent = `Fetched ${added} new charges. Last fetch: ${new Date().toLocaleString()}`;
+    renderRevenue(); renderDashboard();
+  }catch(e){
+    status.textContent = '⚠ ' + e.message + ' — Note: live API calls require a server in some setups due to CORS. If this fails, use the CSV import.';
+  }
+};
+
+/* ============================================================
+   REVENUE
+   ============================================================ */
+document.getElementById('btnAddRevenue').onclick = ()=>{
+  const date = document.getElementById('revDate').value || todayISO();
+  const source = document.getElementById('revSource').value.trim() || 'Manual';
+  const amount = Number(document.getElementById('revAmount').value);
+  const notes = document.getElementById('revNotes').value.trim();
+  if(!amount){ alert('Enter an amount.'); return; }
+  state.revenue.push({id:uid(), date, source, amount, notes});
+  save();
+  ['revDate','revSource','revAmount','revNotes'].forEach(i=>document.getElementById(i).value='');
+  renderRevenue(); renderDashboard();
+};
+function renderRevenue(){
+  const tbody = document.querySelector('#tblRevenue tbody');
+  const sorted = [...state.revenue].sort((a,b)=>b.date.localeCompare(a.date));
+  document.getElementById('revCount').textContent = `${sorted.length} entries · Total ${fmt$(sorted.reduce((a,b)=>a+Number(b.amount),0))}`;
+  tbody.innerHTML = sorted.map(r=>`
+    <tr>
+      <td>${r.date}</td>
+      <td><span class="pill income">${r.source}</span></td>
+      <td>${escapeHtml(r.notes||'')}</td>
+      <td style="text-align:right" class="pos">${fmt$(r.amount)}</td>
+      <td><button class="btn ghost" data-rev-del="${r.id}">✕</button></td>
+    </tr>`).join('');
+  tbody.querySelectorAll('[data-rev-del]').forEach(b=> b.onclick=()=>{
+    if(!confirm('Delete this revenue entry?')) return;
+    state.revenue = state.revenue.filter(x=>x.id!==b.dataset.revDel);
+    save(); renderRevenue(); renderDashboard();
+  });
+}
+document.getElementById('btnExportRev').onclick = ()=> downloadCSV('oot_revenue.csv', state.revenue);
+
+/* ============================================================
+   EXPENSES
+   ============================================================ */
+function getCategoryOptions(includeAll=false){
+  let opts = [...new Set([...state.categories,'Uncategorized'])];
+  if(includeAll) opts = ['', ...opts];
+  return opts;
+}
+function renderExpenses(){
+  // populate filters
+  const catSel = document.getElementById('expCatFilter');
+  const cats = getCategoryOptions();
+  catSel.innerHTML = '<option value="">All categories</option>' + cats.map(c=>`<option>${c}</option>`).join('');
+  const months = [...new Set(state.expenses.map(e=>monthKey(e.date)).filter(Boolean))].sort().reverse();
+  document.getElementById('expMonthFilter').innerHTML = '<option value="">All months</option>'+months.map(m=>`<option>${m}</option>`).join('');
+
+  const search = document.getElementById('expSearch').value.toLowerCase();
+  const fcat = document.getElementById('expCatFilter').value;
+  const fmonth = document.getElementById('expMonthFilter').value;
+  const fflag = document.getElementById('expFlagFilter').value;
+
+  const rows = [...state.expenses]
+    .filter(e=>!search || (e.description||'').toLowerCase().includes(search))
+    .filter(e=>!fcat || e.category===fcat)
+    .filter(e=>!fmonth || monthKey(e.date)===fmonth)
+    .filter(e=> fflag==='' || (fflag==='bill' && e.isBill) || (fflag==='uncategorized' && (!e.category||e.category==='Uncategorized')))
+    .sort((a,b)=>b.date.localeCompare(a.date));
+
+  const total = rows.reduce((a,b)=>a+Number(b.amount),0);
+  document.getElementById('expCount').textContent = `${rows.length} txns · Net ${fmt$(total)}`;
+
+  const tbody = document.querySelector('#tblExpenses tbody');
+  tbody.innerHTML = rows.map(e=>{
+    const isInc = e.amount>0;
+    return `<tr>
+      <td>${e.date}</td>
+      <td>${escapeHtml(e.description||'')}${e.notes?`<div class="small">${escapeHtml(e.notes)}</div>`:''}</td>
+      <td><span class="small">${escapeHtml(e.account||'')}</span></td>
+      <td><span class="pill ${isInc?'income':'expense'}">${escapeHtml(e.category||'Uncategorized')}</span></td>
+      <td style="text-align:center">${e.isBill?'<span class="pill bill">Bill</span>':''}</td>
+      <td style="text-align:right" class="${isInc?'pos':'neg'}">${fmt$(e.amount)}</td>
+      <td><button class="btn ghost" data-exp-edit="${e.id}">Edit</button></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="7"><div class="empty">No transactions match these filters. Import a CSV or add manually.</div></td></tr>`;
+
+  tbody.querySelectorAll('[data-exp-edit]').forEach(b=> b.onclick=()=> openEdit(b.dataset.expEdit));
+}
+['expSearch','expCatFilter','expMonthFilter','expFlagFilter'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', renderExpenses);
+});
+document.getElementById('btnAddExpenseManual').onclick = ()=> openEdit(null);
+document.getElementById('btnExportExp').onclick = ()=> downloadCSV('oot_expenses.csv', state.expenses);
+
+/* edit modal */
+let editingId = null;
+function openEdit(id){
+  editingId = id;
+  const e = id ? state.expenses.find(x=>x.id===id) : {date:todayISO(),amount:0,description:'',category:'Uncategorized',account:'',isBill:false,notes:''};
+  if(!e) return;
+  document.getElementById('editDate').value = e.date||'';
+  document.getElementById('editAmt').value = e.amount||0;
+  document.getElementById('editDesc').value = e.description||'';
+  document.getElementById('editAcct').value = e.account||'';
+  document.getElementById('editNotes').value = e.notes||'';
+  document.getElementById('editBill').checked = !!e.isBill;
+  const sel = document.getElementById('editCat');
+  sel.innerHTML = getCategoryOptions().map(c=>`<option ${c===e.category?'selected':''}>${c}</option>`).join('');
+  document.getElementById('editDelete').style.display = id?'inline-flex':'none';
+  document.getElementById('editModal').classList.remove('hidden');
+}
+document.getElementById('editCancel').onclick = ()=> document.getElementById('editModal').classList.add('hidden');
+document.getElementById('editSave').onclick = ()=>{
+  const data = {
+    date: document.getElementById('editDate').value || todayISO(),
+    amount: Number(document.getElementById('editAmt').value)||0,
+    description: document.getElementById('editDesc').value.trim(),
+    category: document.getElementById('editCat').value,
+    account: document.getElementById('editAcct').value.trim(),
+    isBill: document.getElementById('editBill').checked,
+    notes: document.getElementById('editNotes').value.trim()
+  };
+  if(editingId){
+    const i = state.expenses.findIndex(x=>x.id===editingId);
+    state.expenses[i] = {...state.expenses[i], ...data};
+  } else {
+    state.expenses.push({id:uid(), ...data});
+  }
+  save();
+  document.getElementById('editModal').classList.add('hidden');
+  renderExpenses(); renderDashboard();
+};
+document.getElementById('editDelete').onclick = ()=>{
+  if(!editingId||!confirm('Delete this transaction?')) return;
+  state.expenses = state.expenses.filter(x=>x.id!==editingId);
+  save();
+  document.getElementById('editModal').classList.add('hidden');
+  renderExpenses(); renderDashboard();
+};
+
+/* ============================================================
+   BILLS & RECURRING
+   ============================================================ */
+function renderBills(){
+  // Flagged bills, grouped by description
+  const flagged = state.expenses.filter(e=>e.isBill);
+  const groups = groupBy(flagged, e => normalize(e.description));
+  const tbody1 = document.querySelector('#tblBills tbody');
+  const groupRows = Object.entries(groups).map(([k,arr])=>{
+    const last = arr.reduce((a,b)=>a.date>b.date?a:b);
+    const avg = arr.reduce((a,b)=>a+Math.abs(b.amount),0) / arr.length;
+    return {k,last,avg,count:arr.length, cat:last.category};
+  }).sort((a,b)=>b.avg-a.avg);
+  tbody1.innerHTML = groupRows.map(g=>`
+    <tr>
+      <td>${escapeHtml(g.last.description)}</td>
+      <td><span class="pill expense">${escapeHtml(g.cat||'')}</span></td>
+      <td>${g.last.date}</td>
+      <td>${fmt$(g.avg)}</td>
+      <td>${g.count}</td>
+      <td><button class="btn ghost" data-bill-unflag="${escapeAttr(g.k)}">Unflag all</button></td>
+    </tr>`).join('') || `<tr><td colspan="6"><div class="empty">No bills flagged yet. In the Expenses tab, edit a transaction and check "Mark as recurring bill", or use rules.</div></td></tr>`;
+  tbody1.querySelectorAll('[data-bill-unflag]').forEach(b=> b.onclick=()=>{
+    const k = b.dataset.billUnflag;
+    state.expenses.forEach(e=>{ if(normalize(e.description)===k) e.isBill=false; });
+    save(); renderBills(); renderExpenses();
+  });
+
+  // Auto-detect: same normalized description across 2+ months
+  const all = state.expenses.filter(e=>e.amount<0 && !e.isBill);
+  const byDesc = groupBy(all, e=>normalize(e.description));
+  const recurring = Object.entries(byDesc)
+    .map(([k,arr])=>{
+      const months = new Set(arr.map(x=>monthKey(x.date)));
+      const avg = arr.reduce((a,b)=>a+Math.abs(b.amount),0)/arr.length;
+      return {k,arr,months:[...months],avg};
+    })
+    .filter(g=>g.months.length>=2 && g.arr.length>=2)
+    .sort((a,b)=>b.months.length-a.months.length);
+  const tbody2 = document.querySelector('#tblRecurring tbody');
+  tbody2.innerHTML = recurring.slice(0,30).map(g=>`
+    <tr>
+      <td>${escapeHtml(g.arr[0].description)}</td>
+      <td>${fmt$(g.avg)}</td>
+      <td>${g.months.length}</td>
+      <td><button class="btn primary" data-mark-bill="${escapeAttr(g.k)}">Mark as Bill</button></td>
+    </tr>`).join('') || `<tr><td colspan="4"><div class="empty">No clear recurring patterns found yet.</div></td></tr>`;
+  tbody2.querySelectorAll('[data-mark-bill]').forEach(b=> b.onclick=()=>{
+    const k = b.dataset.markBill;
+    state.expenses.forEach(e=>{ if(normalize(e.description)===k) e.isBill=true; });
+    save(); renderBills(); renderExpenses();
+  });
+}
+
+/* ============================================================
+   PAYROLL
+   ============================================================ */
+document.getElementById('btnAddCon').onclick = ()=>{
+  const date = document.getElementById('conDate').value || todayISO();
+  const name = document.getElementById('conName').value.trim();
+  const role = document.getElementById('conRole').value.trim();
+  const amount = Number(document.getElementById('conAmount').value);
+  if(!name||!amount){ alert('Name and amount required.'); return; }
+  state.contractors.push({id:uid(), date, name, role, amount});
+  save();
+  ['conDate','conName','conRole','conAmount'].forEach(i=>document.getElementById(i).value='');
+  renderPayroll(); renderDashboard();
+};
+document.getElementById('btnAddW2').onclick = ()=>{
+  const date = document.getElementById('w2Date').value || todayISO();
+  const name = document.getElementById('w2Name').value.trim();
+  const gross = Number(document.getElementById('w2Gross').value);
+  const tax = Number(document.getElementById('w2Tax').value)||0;
+  const ben = Number(document.getElementById('w2Ben').value)||0;
+  const notes = document.getElementById('w2Notes').value.trim();
+  if(!name||!gross){ alert('Name and gross required.'); return; }
+  state.w2.push({id:uid(),date,name,gross,tax,benefits:ben,notes,total:gross+tax+ben});
+  save();
+  ['w2Date','w2Name','w2Gross','w2Tax','w2Ben','w2Notes'].forEach(i=>document.getElementById(i).value='');
+  renderPayroll(); renderDashboard();
+};
+function renderPayroll(){
+  // 1099 list
+  const t1 = document.querySelector('#tblCon tbody');
+  const conSorted = [...state.contractors].sort((a,b)=>b.date.localeCompare(a.date));
+  t1.innerHTML = conSorted.map(c=>`
+    <tr><td>${c.date}</td><td>${escapeHtml(c.name)}</td><td>${escapeHtml(c.role||'')}</td>
+      <td style="text-align:right" class="neg">-${fmt$(Math.abs(c.amount)).slice(1)}</td>
+      <td><button class="btn ghost" data-con-del="${c.id}">✕</button></td></tr>`).join('') ||
+    `<tr><td colspan="5"><div class="empty">No 1099 payments logged yet.</div></td></tr>`;
+  t1.querySelectorAll('[data-con-del]').forEach(b=> b.onclick=()=>{
+    state.contractors = state.contractors.filter(x=>x.id!==b.dataset.conDel);
+    save(); renderPayroll(); renderDashboard();
+  });
+  // YTD totals
+  const year = String(new Date().getFullYear());
+  const ytd = {};
+  state.contractors.filter(c=>c.date.startsWith(year)).forEach(c=>{
+    ytd[c.name] = ytd[c.name] || {total:0,count:0};
+    ytd[c.name].total += Number(c.amount);
+    ytd[c.name].count++;
+  });
+  const t2 = document.querySelector('#tblConYtd tbody');
+  t2.innerHTML = Object.entries(ytd).sort((a,b)=>b[1].total-a[1].total).map(([n,v])=>`
+    <tr><td>${escapeHtml(n)}</td><td>${fmt$(v.total)}</td><td>${v.count}</td>
+      <td>${v.total>=600?'<span class="pill expense">YES — file 1099-NEC</span>':'<span class="pill">No (under $600)</span>'}</td></tr>`).join('') ||
+    `<tr><td colspan="4"><div class="empty">No 1099 totals yet.</div></td></tr>`;
+
+  // W-2 list
+  const t3 = document.querySelector('#tblW2 tbody');
+  const wsorted = [...state.w2].sort((a,b)=>b.date.localeCompare(a.date));
+  t3.innerHTML = wsorted.map(w=>`
+    <tr><td>${w.date}</td><td>${escapeHtml(w.name)}</td>
+      <td>${fmt$(w.gross)}</td><td>${fmt$(w.tax||0)}</td><td>${fmt$(w.benefits||0)}</td>
+      <td style="text-align:right" class="neg">${fmt$(w.total)}</td>
+      <td><button class="btn ghost" data-w2-del="${w.id}">✕</button></td></tr>`).join('') ||
+    `<tr><td colspan="7"><div class="empty">No payroll runs yet.</div></td></tr>`;
+  t3.querySelectorAll('[data-w2-del]').forEach(b=> b.onclick=()=>{
+    state.w2 = state.w2.filter(x=>x.id!==b.dataset.w2Del);
+    save(); renderPayroll(); renderDashboard();
+  });
+}
+
+/* ============================================================
+   BUDGETS
+   ============================================================ */
+document.getElementById('btnAddBudget').onclick = ()=>{
+  const c = document.getElementById('newBudgetCat').value.trim();
+  const a = Number(document.getElementById('newBudgetAmt').value);
+  if(!c||!a) return;
+  state.budgets[c] = a;
+  if(!state.categories.includes(c)) state.categories.push(c);
+  save();
+  document.getElementById('newBudgetCat').value=''; document.getElementById('newBudgetAmt').value='';
+  renderBudgets();
+};
+function renderBudgets(){
+  const m = monthKey(todayISO());
+  const monthExp = state.expenses.filter(e=>e.amount<0 && monthKey(e.date)===m);
+  const byCat = {};
+  monthExp.forEach(e=>{ const c=e.category||'Uncategorized'; byCat[c]=(byCat[c]||0)+Math.abs(e.amount); });
+  // include payroll/contractors as expenses by category
+  state.contractors.filter(c=>monthKey(c.date)===m).forEach(c=> byCat['Contractors (1099)']=(byCat['Contractors (1099)']||0)+Number(c.amount));
+  state.w2.filter(w=>monthKey(w.date)===m).forEach(w=> byCat['Payroll (W-2)']=(byCat['Payroll (W-2)']||0)+Number(w.total));
+
+  const tbody = document.querySelector('#tblBudget tbody');
+  const cats = Object.keys({...state.budgets, ...byCat}).sort();
+  tbody.innerHTML = cats.map(c=>{
+    const b = state.budgets[c]||0;
+    const a = byCat[c]||0;
+    const pct = b>0 ? Math.min(150, (a/b)*100) : 0;
+    const over = b>0 && a>b;
+    return `<tr>
+      <td>${escapeHtml(c)}</td>
+      <td>${b? fmt$(b) : '<span class="small">— not set —</span>'}</td>
+      <td>${fmt$(a)}</td>
+      <td>${b? `<progress value="${Math.min(pct,100)}" max="100" class="${over?'over':''}"></progress><div class="small">${over?'Over budget by ':''}${b? Math.round((a/b)*100)+'%':''}</div>` : ''}</td>
+      <td>${b? `<button class="btn ghost" data-bud-del="${escapeAttr(c)}">Remove</button>`:''}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="5"><div class="empty">No budgets yet. Add one below to track spending vs target.</div></td></tr>`;
+  tbody.querySelectorAll('[data-bud-del]').forEach(b=> b.onclick=()=>{
+    delete state.budgets[b.dataset.budDel]; save(); renderBudgets();
+  });
+}
+
+/* ============================================================
+   INSIGHTS
+   ============================================================ */
+let charts = {};
+function renderInsights(){
+  const months = lastNMonths(12);
+  const labels = months.map(m=>m);
+  const rev = months.map(m=> sumRevenue(m));
+  const exp = months.map(m=> sumExpenses(m));
+  const data1 = {labels, datasets:[
+    {label:'Revenue', data:rev, borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,.15)', tension:.3, fill:true},
+    {label:'Expenses', data:exp.map(v=>Math.abs(v)), borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,.15)', tension:.3, fill:true}
+  ]};
+  upsertChart('insChart1','line',data1);
+
+  // Category 12mo
+  const catSet = new Set();
+  state.expenses.filter(e=>e.amount<0).forEach(e=> catSet.add(e.category||'Uncategorized'));
+  const cats = [...catSet];
+  const stack = cats.map(c=>{
+    return {label:c, data:months.map(m=> Math.abs(state.expenses.filter(e=>e.amount<0 && monthKey(e.date)===m && (e.category||'Uncategorized')===c).reduce((a,b)=>a+Number(b.amount),0)) )};
+  });
+  upsertChart('insChart2','bar',{labels, datasets:stack.map((s,i)=>({...s,backgroundColor:palette(i)}))}, {scales:{x:{stacked:true},y:{stacked:true}}});
+
+  // MoM table
+  const m1 = months[months.length-1];
+  const m0 = months[months.length-2];
+  const cm0 = catTotalsForMonth(m0), cm1 = catTotalsForMonth(m1);
+  const all = new Set([...Object.keys(cm0), ...Object.keys(cm1)]);
+  const rows = [...all].map(c=>{
+    const a=cm0[c]||0, b=cm1[c]||0;
+    const diff = b-a;
+    const pct = a===0 ? (b!==0?100:0) : ((b-a)/a)*100;
+    return {c,a,b,diff,pct};
+  }).sort((x,y)=> Math.abs(y.diff)-Math.abs(x.diff));
+  document.querySelector('#tblMoM tbody').innerHTML = rows.map(r=>`
+    <tr><td>${escapeHtml(r.c)}</td><td>${fmt$(r.a)}</td><td>${fmt$(r.b)}</td>
+      <td class="${r.diff>0?'neg':'pos'}">${r.diff>0?'+':''}${fmt$(r.diff)}</td>
+      <td class="${r.diff>0?'neg':'pos'}">${r.diff>0?'+':''}${(isFinite(r.pct)?r.pct:0).toFixed(1)}%</td></tr>`).join('') ||
+    `<tr><td colspan="5"><div class="empty">Need at least 2 months of expense data.</div></td></tr>`;
+
+  // Runway
+  const burn = avg(months.slice(-3).map(m=>sumExpenses(m)).map(Math.abs));
+  const incAvg = avg(months.slice(-3).map(m=>sumRevenue(m)));
+  const net = incAvg - burn;
+  const runway = (state.cashOnHand>0 && net<0) ? (state.cashOnHand / Math.abs(net)) : Infinity;
+  document.getElementById('runwayDetail').innerHTML = `
+    Avg revenue (last 3 mo): <strong>${fmt$(incAvg)}</strong> · Avg expenses: <strong>${fmt$(burn)}</strong> · Net: <strong class="${net>=0?'pos':'neg'}">${fmt$(net)}</strong><br>
+    Cash on hand: <strong>${fmt$(state.cashOnHand)}</strong> · Runway: <strong>${runway===Infinity?'∞ (profitable)':runway.toFixed(1)+' months'}</strong>
+  `;
+
+  // Feedback
+  document.getElementById('feedback').innerHTML = generateFeedback({months,rev,exp,rows,burn,incAvg,net,runway}).map(f=>`<div class="card" style="margin-bottom:8px;background:#0e1322;padding:12px"><strong>${f.t}</strong><br><span class="sub">${f.b}</span></div>`).join('');
+}
+function avg(arr){ if(!arr.length) return 0; return arr.reduce((a,b)=>a+b,0)/arr.length; }
+function generateFeedback(ctx){
+  const out = [];
+  const {rev,exp,rows,burn,incAvg,net,runway} = ctx;
+  // revenue trend
+  const rTrend = rev.slice(-3);
+  if(rTrend[2]>rTrend[0] && rTrend[0]>0){
+    out.push({t:'📈 Revenue trending up',b:`Last 3 months: ${rTrend.map(fmt$).join(' → ')}. Keep doing what's working — note any campaigns or product launches in this window.`});
+  } else if(rTrend[2]<rTrend[0]){
+    out.push({t:'⚠ Revenue trending down',b:`Last 3 months: ${rTrend.map(fmt$).join(' → ')}. Worth investigating: traffic, conversion, churn. Compare ad spend & content cadence to prior periods.`});
+  }
+  // biggest mover
+  const bigUp = rows.find(r=>r.diff>0);
+  if(bigUp && bigUp.b>50) out.push({t:'🔺 Biggest spending increase: '+bigUp.c, b:`Up ${fmt$(bigUp.diff)} vs last month (${bigUp.pct.toFixed(0)}%). Confirm this was intentional — is it driving revenue or just leaking cash?`});
+  const bigDown = rows.find(r=>r.diff<0);
+  if(bigDown && Math.abs(bigDown.diff)>50) out.push({t:'🔻 Biggest spending decrease: '+bigDown.c, b:`Down ${fmt$(Math.abs(bigDown.diff))} vs last month. Nice. If unintentional, double-check no autopay was missed.`});
+  // bills concentration
+  const billTotal = state.expenses.filter(e=>e.isBill && monthKey(e.date)===monthKey(todayISO())).reduce((a,b)=>a+Math.abs(b.amount),0);
+  const expTotal = Math.abs(sumExpenses(monthKey(todayISO())));
+  if(expTotal>0 && billTotal/expTotal > 0.6) out.push({t:'📌 Bills are dominating spending', b:`${Math.round(billTotal/expTotal*100)}% of this month's spending is recurring bills. Audit for unused subscriptions — every dollar saved is a dollar of profit.`});
+  // runway
+  if(runway!==Infinity && runway<6) out.push({t:'🟠 Runway under 6 months', b:`At current burn (${fmt$(burn)}/mo) and revenue (${fmt$(incAvg)}/mo), cash lasts about ${runway.toFixed(1)} months. Consider trimming non-essential bills, raising prices, or accelerating revenue.`});
+  if(runway===Infinity && net>0) out.push({t:'✅ Profitable',b:`Avg net profit ${fmt$(net)}/mo. Consider building a 6-month operating reserve, then deploying excess into growth or owner draw.`});
+  // 1099 reminder
+  const year = String(new Date().getFullYear());
+  const conYTD = {}; state.contractors.filter(c=>c.date.startsWith(year)).forEach(c=> conYTD[c.name]=(conYTD[c.name]||0)+Number(c.amount));
+  const owe1099 = Object.entries(conYTD).filter(([_,v])=>v>=600);
+  if(owe1099.length) out.push({t:'🧾 1099-NEC reminder', b:`${owe1099.length} contractor(s) at $600+ YTD: ${owe1099.map(([n,v])=>n+' ('+fmt$(v)+')').join(', ')}. File 1099-NEC by Jan 31.`});
+  if(!out.length) out.push({t:'No major flags',b:'Numbers look stable. Add a few months of data to surface deeper trends.'});
+  return out;
+}
+
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+document.getElementById('dashThisMonth').onclick = ()=>{
+  document.getElementById('dashMonth').value = monthKey(todayISO());
+  renderDashboard();
+};
+document.getElementById('dashMonth').addEventListener('change', renderDashboard);
+
+function renderDashboard(){
+  const m = document.getElementById('dashMonth').value || monthKey(todayISO());
+  document.getElementById('dashMonth').value = m;
+  document.getElementById('dashMonthLabel').textContent = monthLabel(m);
+  const prev = prevMonth(m);
+  renderReminderBanner();
+
+  const rev = sumRevenue(m), exp = Math.abs(sumExpenses(m));
+  const revP = sumRevenue(prev), expP = Math.abs(sumExpenses(prev));
+  const net = rev-exp;
+  const netP = revP-expP;
+
+  document.getElementById('kpiRevenue').textContent = fmt$(rev);
+  document.getElementById('kpiExpenses').textContent = fmt$(exp);
+  document.getElementById('kpiNet').textContent = fmt$(net);
+  document.getElementById('kpiNet').className = 'value ' + (net>=0?'pos':'neg');
+  document.getElementById('kpiCash').textContent = fmt$(state.cashOnHand);
+  document.getElementById('kpiRevenueDelta').innerHTML = deltaHtml(rev, revP);
+  document.getElementById('kpiExpensesDelta').innerHTML = deltaHtml(exp, expP, true);
+  document.getElementById('kpiNetDelta').innerHTML = deltaHtml(net, netP);
+
+  // Runway
+  const months = lastNMonths(3);
+  const burn = avg(months.map(m=>sumExpenses(m)).map(Math.abs));
+  const incAvg = avg(months.map(m=>sumRevenue(m)));
+  const monthlyNet = incAvg-burn;
+  let runwayTxt = '';
+  if(monthlyNet>=0) runwayTxt = `Profitable: avg ${fmt$(monthlyNet)}/mo`;
+  else if(state.cashOnHand>0) runwayTxt = `Runway: ${(state.cashOnHand/Math.abs(monthlyNet)).toFixed(1)} months at current burn`;
+  else runwayTxt = `Set "Cash on Hand" in Settings to compute runway`;
+  document.getElementById('kpiRunway').textContent = runwayTxt;
+
+  // 12 mo cash flow
+  const labels = lastNMonths(12);
+  const revData = labels.map(sumRevenue);
+  const expData = labels.map(m=>Math.abs(sumExpenses(m)));
+  const netData = labels.map((_,i)=>revData[i]-expData[i]);
+  upsertChart('chartCashFlow','bar',{
+    labels, datasets:[
+      {type:'bar',label:'Revenue', data:revData, backgroundColor:'rgba(34,197,94,.7)'},
+      {type:'bar',label:'Expenses', data:expData, backgroundColor:'rgba(239,68,68,.7)'},
+      {type:'line',label:'Net', data:netData, borderColor:'#facc15', backgroundColor:'transparent', tension:.3}
+    ]
+  });
+
+  // Category this month
+  const cats = catTotalsForMonth(m);
+  upsertChart('chartCategoryMonth','doughnut',{labels:Object.keys(cats), datasets:[{data:Object.values(cats), backgroundColor:Object.keys(cats).map((_,i)=>palette(i))}]});
+
+  // Top expenses
+  const top = state.expenses.filter(e=>e.amount<0 && monthKey(e.date)===m)
+    .sort((a,b)=>a.amount-b.amount).slice(0,8);
+  document.querySelector('#tblTopExpenses tbody').innerHTML = top.map(e=>`
+    <tr><td>${e.date}</td><td>${escapeHtml(e.description||'')}</td>
+      <td><span class="pill expense">${escapeHtml(e.category||'')}</span></td>
+      <td style="text-align:right" class="neg">${fmt$(e.amount)}</td></tr>`).join('') ||
+    `<tr><td colspan="4"><div class="empty">No expenses this month yet.</div></td></tr>`;
+
+  // Bills due
+  const billGroups = groupBy(state.expenses.filter(e=>e.isBill), e=>normalize(e.description));
+  const billRows = Object.entries(billGroups).map(([k,arr])=>{
+    const last = arr.reduce((a,b)=>a.date>b.date?a:b);
+    const months = new Set(arr.map(x=>monthKey(x.date)));
+    const avgAmt = arr.reduce((a,b)=>a+Math.abs(b.amount),0)/arr.length;
+    return {desc:last.description,cat:last.category,avgAmt,cadence:months.size>1?'Monthly':'One-off'};
+  }).sort((a,b)=>b.avgAmt-a.avgAmt).slice(0,8);
+  document.querySelector('#tblBillsDue tbody').innerHTML = billRows.map(b=>`
+    <tr><td>${escapeHtml(b.desc)}</td><td><span class="pill bill">${escapeHtml(b.cat||'')}</span></td>
+      <td>${b.cadence}</td><td style="text-align:right">${fmt$(b.avgAmt)}</td></tr>`).join('') ||
+    `<tr><td colspan="4"><div class="empty">No bills flagged yet.</div></td></tr>`;
+
+  // Monthly insight
+  document.getElementById('monthlyInsight').innerHTML = monthlyInsightText(m, {rev,exp,net,revP,expP,netP});
+}
+
+function monthlyInsightText(m,{rev,exp,net,revP,expP,netP}){
+  const lines = [];
+  const revPct = revP===0 ? (rev>0?100:0) : ((rev-revP)/revP)*100;
+  const expPct = expP===0 ? (exp>0?100:0) : ((exp-expP)/expP)*100;
+  if(rev>0 || exp>0) lines.push(`In ${monthLabel(m)} you earned <strong>${fmt$(rev)}</strong> and spent <strong>${fmt$(exp)}</strong>, for net <strong class="${net>=0?'pos':'neg'}">${fmt$(net)}</strong>.`);
+  else lines.push(`No data yet for ${monthLabel(m)} — import a CSV or add transactions to get started.`);
+  if(revP>0||expP>0){
+    lines.push(`vs prior month: revenue ${revPct>=0?'+':''}${revPct.toFixed(1)}%, expenses ${expPct>=0?'+':''}${expPct.toFixed(1)}%, net ${netP===0?'':((net-netP)>=0?'+':'')+fmt$(net-netP)}.`);
+  }
+  // Largest category
+  const cats = catTotalsForMonth(m);
+  const top = Object.entries(cats).sort((a,b)=>b[1]-a[1])[0];
+  if(top) lines.push(`Largest spending category: <strong>${top[0]}</strong> at ${fmt$(top[1])}.`);
+  return lines.join('<br>');
+}
+
+function deltaHtml(cur,prev,inverse=false){
+  if(prev===0 && cur===0) return '<span class="neutral">—</span>';
+  const pct = prev===0 ? 100 : ((cur-prev)/Math.abs(prev))*100;
+  const goodWhenUp = !inverse;
+  const isUp = cur>prev;
+  const cls = (isUp===goodWhenUp)?'pos':'neg';
+  const sign = (cur-prev)>=0?'+':'';
+  return `<span class="${cls}">${sign}${fmt$(cur-prev)} (${pct.toFixed(1)}%) vs prior</span>`;
+}
+
+/* ============================================================
+   SETTINGS
+   ============================================================ */
+function renderSettings(){
+  // Cash
+  document.getElementById('cashOnHand').value = state.cashOnHand||'';
+  // Stripe key
+  document.getElementById('stripeKey').value = state.stripeKey||'';
+  // Logo preview
+  const lp = document.getElementById('logoPreview');
+  if(lp){
+    lp.innerHTML = state.logoDataUrl
+      ? `<img src="${state.logoDataUrl}" style="max-width:100%;max-height:100%;object-fit:contain"/>`
+      : `<span class="small" style="color:var(--muted)">Default placeholder shown</span>`;
+  }
+  // Rules
+  const tb = document.querySelector('#tblRules tbody');
+  tb.innerHTML = state.rules.map((r,i)=>`
+    <tr><td><span class="kbd">${escapeHtml(r.key)}</span></td>
+      <td>${escapeHtml(r.cat)}</td>
+      <td>${r.bill?'Yes':'No'}</td>
+      <td><button class="btn ghost" data-rule-del="${i}">✕</button></td></tr>`).join('') ||
+    `<tr><td colspan="4"><div class="empty">No rules yet.</div></td></tr>`;
+  tb.querySelectorAll('[data-rule-del]').forEach(b=> b.onclick=()=>{
+    state.rules.splice(Number(b.dataset.ruleDel),1); save(); renderSettings();
+  });
+  // Categories chips
+  const chip = document.getElementById('catChips');
+  chip.innerHTML = state.categories.map((c,i)=>`<span class="pill" style="margin:3px">${escapeHtml(c)} <button class="btn ghost" style="padding:0 6px;font-size:10px" data-cat-del="${i}">✕</button></span>`).join('');
+  chip.querySelectorAll('[data-cat-del]').forEach(b=> b.onclick=()=>{
+    state.categories.splice(Number(b.dataset.catDel),1); save(); renderSettings();
+  });
+}
+document.getElementById('btnSaveCash').onclick = ()=>{
+  state.cashOnHand = Number(document.getElementById('cashOnHand').value)||0; save(); renderDashboard(); alert('Saved.');
+};
+document.getElementById('btnAddRule').onclick = ()=>{
+  const k = document.getElementById('ruleKey').value.trim();
+  const c = document.getElementById('ruleCat').value.trim();
+  const bill = document.getElementById('ruleBill').checked;
+  if(!k||!c) return;
+  state.rules.push({key:k,cat:c,bill});
+  save();
+  ['ruleKey','ruleCat'].forEach(i=>document.getElementById(i).value=''); document.getElementById('ruleBill').checked=false;
+  renderSettings();
+};
+document.getElementById('btnRunRules').onclick = ()=>{ reapplyRulesAll(); alert('Rules re-applied.'); renderExpenses(); renderDashboard(); };
+document.getElementById('btnAddCat').onclick = ()=>{
+  const c = document.getElementById('newCat').value.trim();
+  if(!c) return;
+  if(!state.categories.includes(c)) state.categories.push(c);
+  document.getElementById('newCat').value=''; save(); renderSettings();
+};
+document.getElementById('btnExportAll').onclick = ()=>{
+  const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `oot-finance-backup-${todayISO()}.json`;
+  a.click();
+};
+document.getElementById('importJson').onchange = (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const obj = JSON.parse(r.result);
+      if(!confirm('This will REPLACE all current data. Continue?')) return;
+      state = Object.assign(blank(), obj);
+      save(); renderAll(); alert('Imported.');
+    }catch(err){ alert('Invalid JSON: '+err.message); }
+  };
+  r.readAsText(f);
+  e.target.value = '';
+};
+document.getElementById('btnWipe').onclick = ()=>{
+  if(!confirm('Delete ALL data (transactions, payroll, settings)? This cannot be undone.')) return;
+  if(!confirm('Are you absolutely sure?')) return;
+  state = blank(); save(); renderAll(); alert('Wiped.');
+};
+/* Logo upload */
+document.getElementById('logoUpload').onchange = (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  if(f.size > 2*1024*1024){ alert('Image too large (max 2MB).'); return; }
+  const r = new FileReader();
+  r.onload = ()=>{
+    state.logoDataUrl = r.result;
+    save();
+    renderBrandLogo();
+    renderSettings();
+  };
+  r.readAsDataURL(f);
+  e.target.value = '';
+};
+document.getElementById('btnLogoClear').onclick = ()=>{
+  state.logoDataUrl = '';
+  save();
+  // Restore default OOT bull image
+  document.getElementById('brandLogo').innerHTML = '<img src="logo-square.png" alt="OnlyOptionsTrades"/>';
+  renderSettings();
+};
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
+function normalize(s){ return (s||'').toLowerCase().replace(/[0-9#*]+/g,'').replace(/[^a-z\s]/g,'').trim().split(/\s+/).slice(0,4).join(' '); }
+function groupBy(arr,fn){ const o={}; arr.forEach(x=>{const k=fn(x); (o[k]=o[k]||[]).push(x);}); return o; }
+function lastNMonths(n){
+  const out=[]; const d=new Date(); d.setDate(1);
+  for(let i=n-1;i>=0;i--){
+    const dd = new Date(d.getFullYear(),d.getMonth()-i,1);
+    out.push(dd.toISOString().slice(0,7));
+  }
+  return out;
+}
+function prevMonth(m){
+  const [y,mo] = m.split('-').map(Number);
+  const d = new Date(y, mo-2, 1);
+  return d.toISOString().slice(0,7);
+}
+function monthLabel(m){
+  const [y,mo] = m.split('-').map(Number);
+  return new Date(y,mo-1,1).toLocaleString('en-US',{month:'long',year:'numeric'});
+}
+function sumRevenue(m){
+  const rev = state.revenue.filter(r=>monthKey(r.date)===m).reduce((a,b)=>a+Number(b.amount),0);
+  const inc = state.expenses.filter(e=>e.amount>0 && monthKey(e.date)===m).reduce((a,b)=>a+Number(b.amount),0);
+  return rev + inc;
+}
+function sumExpenses(m){
+  const ex = state.expenses.filter(e=>e.amount<0 && monthKey(e.date)===m).reduce((a,b)=>a+Number(b.amount),0);
+  const con = state.contractors.filter(c=>monthKey(c.date)===m).reduce((a,b)=>a+Number(b.amount),0);
+  const w2 = state.w2.filter(w=>monthKey(w.date)===m).reduce((a,b)=>a+Number(b.total),0);
+  return ex - con - w2; // negative
+}
+function catTotalsForMonth(m){
+  const o = {};
+  state.expenses.filter(e=>e.amount<0 && monthKey(e.date)===m).forEach(e=>{
+    const c=e.category||'Uncategorized'; o[c]=(o[c]||0)+Math.abs(Number(e.amount));
+  });
+  const con = state.contractors.filter(c=>monthKey(c.date)===m).reduce((a,b)=>a+Number(b.amount),0);
+  if(con) o['Contractors (1099)'] = (o['Contractors (1099)']||0) + con;
+  const w2 = state.w2.filter(w=>monthKey(w.date)===m).reduce((a,b)=>a+Number(b.total),0);
+  if(w2) o['Payroll (W-2)'] = (o['Payroll (W-2)']||0) + w2;
+  return o;
+}
+function palette(i){
+  const c = ['#22c55e','#facc15','#38bdf8','#f97316','#a78bfa','#ec4899','#14b8a6','#ef4444','#84cc16','#f59e0b','#06b6d4','#8b5cf6'];
+  return c[i%c.length];
+}
+function upsertChart(id,type,data,opts){
+  const ctx = document.getElementById(id);
+  if(charts[id]) charts[id].destroy();
+  charts[id] = new Chart(ctx,{type,data,options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#e6ecf5'}}},scales:type==='doughnut'?{}:{x:{ticks:{color:'#8a96ad'},grid:{color:'#1d2742'}},y:{ticks:{color:'#8a96ad'},grid:{color:'#1d2742'}}},...opts}});
+}
+function downloadCSV(name,arr){
+  if(!arr.length){ alert('Nothing to export.'); return; }
+  const cols = Object.keys(arr[0]);
+  const csv = [cols.join(',')].concat(arr.map(r=>cols.map(c=>JSON.stringify(r[c]??'')).join(','))).join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+}
+
+/* ============================================================
+   END-OF-MONTH REMINDER (visible 25th -> 2nd of next month)
+   ============================================================ */
+function reminderCycleKey(){
+  // Cycle "belongs to" the month being closed. If today is 25-31, that's this month.
+  // If today is 1-2, that belongs to PREVIOUS month's cycle.
+  const d = new Date();
+  const day = d.getDate();
+  if(day <= 2){
+    const p = new Date(d.getFullYear(), d.getMonth()-1, 1);
+    return p.toISOString().slice(0,7);
+  }
+  return d.toISOString().slice(0,7);
+}
+function isInReminderWindow(){
+  const day = new Date().getDate();
+  return day >= 25 || day <= 2;
+}
+function renderReminderBanner(){
+  const banner = document.getElementById('reminderBanner');
+  if(!banner) return;
+  const cycle = reminderCycleKey();
+  const inWindow = isInReminderWindow();
+  const dismissed = state.reminderDismissedCycle === cycle;
+  if(inWindow && !dismissed){
+    banner.classList.remove('hidden');
+    const cycleLabel = monthLabel(cycle);
+    document.getElementById('reminderTitle').textContent = `End-of-Month Reminders — closing ${cycleLabel}`;
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+const reminderCloseBtn = document.getElementById('reminderClose');
+if(reminderCloseBtn){
+  reminderCloseBtn.onclick = ()=>{
+    state.reminderDismissedCycle = reminderCycleKey();
+    save();
+    document.getElementById('reminderBanner').classList.add('hidden');
+  };
+}
+
+/* ============================================================
+   LOGO RENDERING
+   ============================================================ */
+function renderBrandLogo(){
+  const el = document.getElementById('brandLogo');
+  if(!el) return;
+  if(state.logoDataUrl){
+    el.innerHTML = `<img src="${state.logoDataUrl}" alt="OOT logo"/>`;
+  }
+  // else: leave the default SVG bull placeholder in HTML
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+function renderAll(){
+  renderBrandLogo();
+  document.getElementById('dashMonth').value = monthKey(todayISO());
+  renderDashboard();
+}
+renderAll();
+// Re-check reminder visibility every 5 min in case user leaves tab open across midnight
+setInterval(renderReminderBanner, 5*60*1000);
+
+// Register service worker (enables offline + PWA install on Android/Chrome)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
